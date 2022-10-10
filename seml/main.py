@@ -255,7 +255,7 @@ def main():
     ###################################################     
 
     for subparser in [parser_start, parser_launch_worker, parser_print_command,
-                      parser_cancel, parser_delete, parser_reset]:
+                      parser_cancel, parser_delete, parser_reset, parser_restage]:
         subparser.add_argument(
                 '-id', '--sacred-id', type=int,
                 help="Sacred ID (_id in the database collection) of the experiment. "
