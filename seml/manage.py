@@ -293,6 +293,55 @@ def reset_experiments(db_collection_name, sacred_id, filter_states, batch_id, fi
             reset_single_experiment(collection, exp)
 
 
+def restage_single_experiment(collection, exp):
+    exp['status'] = States.STAGED[0]
+
+    # Clean up SEML dictionary
+    keep_seml = set(['source_files', 'working_dir'])
+    keep_seml.update(SETTINGS.VALID_SEML_CONFIG_VALUES)
+    seml_keys = set(exp['seml'].keys())
+    for key in seml_keys - keep_seml:
+        del exp['seml'][key]
+
+    reset_slurm_dict(exp)
+
+    collection.replace_one({'_id': exp['_id']}, {entry: exp[entry] for entry in exp},
+                           upsert=False)
+
+
+def restage_experiments(db_collection_name, sacred_id, filter_states, batch_id, filter_dict, yes=False):
+    collection = get_collection(db_collection_name)
+
+    if sacred_id is None:
+        if len({*States.PENDING, *States.RUNNING, *States.KILLED} & set(filter_states)) > 0:
+            detect_killed(db_collection_name, print_detected=False)
+
+        if isinstance(filter_states, str):
+            filter_states = [filter_states]
+
+        filter_dict = build_filter_dict(filter_states, batch_id, filter_dict)
+
+        nrestage = collection.count_documents(filter_dict)
+        exps = collection.find(filter_dict)
+
+        logging.info(f"Restaging {nrestage} experiment{s_if(nrestage)}.")
+        if nrestage >= SETTINGS.CONFIRM_RESET_THRESHOLD:
+            if not yes and input(f"Are you sure? (y/n) ").lower() != "y":
+                exit()
+        for exp in exps:
+            restage_single_experiment(collection, exp)
+    else:
+        exp = collection.find_one({'_id': sacred_id})
+        if exp is None:
+            raise MongoDBError(f"No experiment found with ID {sacred_id}.")
+        else:
+            logging.info(f"Restaging the experiment with ID {sacred_id}.")
+            if SETTINGS.CONFIRM_RESET_THRESHOLD <= 1:
+                if not yes and input('Are you sure? (y/n)').lower() != 'y':
+                    exit()
+            restage_single_experiment(collection, exp)
+
+
 def detect_killed(db_collection_name, print_detected=True):
     collection = get_collection(db_collection_name)
     exps = collection.find({'status': {'$in': [*States.PENDING, *States.RUNNING]},

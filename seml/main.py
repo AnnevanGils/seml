@@ -3,7 +3,7 @@ import argparse
 import json
 import logging
 
-from seml.manage import (report_status, cancel_experiments, delete_experiments, detect_killed, reset_experiments,
+from seml.manage import (report_status, cancel_experiments, delete_experiments, detect_killed, reset_experiments, restage_experiments,
                          mongodb_credentials_prompt, reload_sources)
 from seml.add import add_config_files
 from seml.start import start_experiments, start_jupyter_job, print_command
@@ -241,6 +241,18 @@ def main():
             "detect-killed",
             help="Detect experiments where the corresponding Slurm jobs were killed externally.")
     parser_detect.set_defaults(func=detect_killed)
+
+    #new subparser: restage experiment to continue where it left off
+    ###################################################
+    parser_restage = subparsers.add_parser(
+        'restage',
+        help="Restage experiments for continuing by resetting their state while keeping their relevant database entries.")
+    parser_restage.add_argument(
+        '-s', '--filter-states', type=str, nargs='*', default=[*States.KILLED],
+        help="List of states to filter experiments by."
+                "Default: restage killed experiments.")
+    parser_restage.set_defaults(func=restage_experiments)
+    ###################################################     
 
     for subparser in [parser_start, parser_launch_worker, parser_print_command,
                       parser_cancel, parser_delete, parser_reset]:
